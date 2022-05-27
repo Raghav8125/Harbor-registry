@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Gitlab clone') {
+            steps {
+                git branch: 'main', credentialsId: 'Gitlab', url: 'http://192.168.12.139/gitlab-instance-09ce92f6/demosetup.git'
+            }
+        }
+        
+          stage ('Artifactory configuration') {
+            steps {
+                rtServer (
+                    id: "my_artifactory",
+                    url: "http://192.168.12.139:8081/artifactory",
+                    credentialsId: "Jfrog"
+                )
+            }
+        }
+        stage ('Upload file') {
+            steps {
+                rtUpload (
+                    // Obtain an Artifactory server instance, defined in Jenkins --> Manage Jenkins --> Configure System:
+                    serverId: 'my_artifactory',
+                    spec: """{
+                            "files": [
+                                    {
+                                        "pattern": "/var/jenkins_home/workspace/Pipelinedemo/*.tar",
+                                        "target": "example-repo-local"
+                                    }
+                                ]
+                            }"""
+                )
+            }
+        }
+        
+        stage('Load and push Image'){
+             steps{
+                  
+                  sh 'docker load --input nginx.tar'
+                 
+                 withCredentials([usernameColonPassword(credentialsId: 'Harbor', variable: 'registry')])
+                 {
+                       sh "docker login -u admin -p ${reigstry}"
+                  }
+                  
+                  sh 'docker push demosetup/nginx:latest'
+
+             }
+            
+        }
+        
+        
+
+        
+    }
+}
